@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -86,15 +87,17 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <!-- Logo placeholder -->
         <div class="logo">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2e7af5">
-                <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 14c-2.67 0-8-1.34-8-4v-2c0-2.66 5.33-4 8-4s8 1.34 8 4v2c0 2.66-5.33 4-8 4z"/>
+                <path
+                    d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 14c-2.67 0-8-1.34-8-4v-2c0-2.66 5.33-4 8-4s8 1.34 8 4v2c0 2.66-5.33 4-8 4z" />
             </svg>
         </div>
-        
+
         <div id="processing">
             <div class="icon processing-icon">⌛</div>
             <h1>Verifying your email...</h1>
@@ -103,13 +106,14 @@
                 <p class="status-message" id="status-message">Processing verification request...</p>
             </div>
         </div>
-        
+
         <div id="success" style="display: none;">
             <div class="icon success-icon">✓</div>
             <h1>Email Verified!</h1>
-            <p>Your email has been successfully verified. You can now close this window and log in to your MedEvent app.</p>
+            <p>Your email has been successfully verified. You can now close this window and log in to your MedEvent app.
+            </p>
         </div>
-        
+
         <div id="error" style="display: none;">
             <div class="icon error-icon">✗</div>
             <h1>Verification Failed</h1>
@@ -121,10 +125,14 @@
     </div>
 
     <script>
-        // Function to extract URL parameters
-        function getQueryParam(param) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(param);
+        // Function to extract URL parameters from the entire URL
+        function getTokenFromURL() {
+            // Check for token in query params anywhere in URL, including path
+            const url = window.location.href;
+            const tokenRegex = /token=([^&]+)/;
+            const match = url.match(tokenRegex);
+            
+            return match ? match[1] : null;
         }
 
         // Function to update status message
@@ -149,8 +157,8 @@
 
         // Main function to handle verification
         async function verifyEmail() {
-            // Get token from URL
-            const token = getQueryParam('token');
+            // Get token from URL - using the more robust method
+            const token = getTokenFromURL();
             
             // If no token provided, show error
             if (!token) {
@@ -160,13 +168,44 @@
 
             try {
                 updateStatus('Validating your verification token...');
+
+                // Call the verification API with your backend URL
+                const apiUrl = 'https://health-server-fawn.vercel.app/api/auth/verify-email';
                 
-                // With Supabase, the verification happens automatically when clicking the link
-                // We're just showing a success message after a brief delay for UX purposes
-                setTimeout(() => {
-                    showSuccess();
-                }, 1500);
+                // Make the API request
+                const response = await fetch(`${apiUrl}?token=${token}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
+                // Process the response
+                if (response.ok) {
+                    try {
+                        const data = await response.json();
+                        if (data && data.success) {
+                            showSuccess();
+                        } else {
+                            showError(data.message || 'Verification failed');
+                        }
+                    } catch (jsonError) {
+                        // The server might have returned non-JSON response
+                        if (response.status === 200) {
+                            showSuccess();
+                        } else {
+                            showError('Verification server returned an unexpected response');
+                        }
+                    }
+                } else {
+                    try {
+                        const errorData = await response.json();
+                        showError(errorData.message || 'Verification failed');
+                    } catch (jsonError) {
+                        showError(`Verification failed with status ${response.status}`);
+                    }
+                }
             } catch (error) {
                 console.error('Verification error:', error);
                 showError('Verification failed. Please try again or request a new verification email.');
@@ -177,4 +216,5 @@
         window.addEventListener('DOMContentLoaded', verifyEmail);
     </script>
 </body>
+
 </html>
